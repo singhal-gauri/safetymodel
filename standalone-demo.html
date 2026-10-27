@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#0F172A">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="SafeWay">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/svg+xml" href="icon-192.svg">
+  <link rel="apple-touch-icon" href="icon-192.svg">
+  <title>SafeWay - Women Safety Route Planner & Emergency Navigation</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <!-- Lucide icons CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    @keyframes dash {
+      to { stroke-dashoffset: -20; }
+    }
+    .animate-dash {
+      animation: dash 1.5s linear infinite;
+    }
+  </style>
+</head>
+<body class="bg-[#090D16] text-slate-100 antialiased selection:bg-emerald-500 selection:text-white">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef, useMemo, useCallback } = React;
+
+    // Helper to render Lucide SVG icons safely in standalone browser mode
+    const Icon = ({ name, className = "w-4 h-4", ...props }) => {
+      // SVGs for key icons
+      const icons = {
+        shield: <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>,
+        navigation: <polygon points="3 11 22 2 13 21 11 13 3 11"/>,
+        clock: <><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></>,
+        userCheck: <><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/></>,
+        phoneCall: <><path d="M15.05 5A5 5 0 0 1 19 8.95M15.05 1A9 9 0 0 1 23 8.94"/><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></>,
+        siren: <><path d="M7 18v-6a5 5 0 1 1 10 0v6"/><path d="M5 21a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-1a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2z"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="12" y1="1" x2="12" y2="3"/></>,
+        alertTriangle: <><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></>,
+        share2: <><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></>,
+        plus: <><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></>,
+        trash2: <><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></>,
+        volume2: <><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></>,
+        volumeX: <><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="22" y1="9" x2="16" y2="15"/><line x1="16" y1="9" x2="22" y2="15"/></>,
+        checkCircle: <><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></>,
+        crosshair: <><circle cx="12" cy="12" r="10"/><line x1="22" y1="12" x2="18" y2="12"/><line x1="6" y1="12" x2="2" y2="12"/><line x1="12" y1="6" x2="12" y2="2"/><line x1="12" y1="22" x2="12" y2="18"/></>,
+        camera: <><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></>,
+        sun: <><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></>,
+        phone: <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>,
+        x: <><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></>,
+        sparkles: <path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/>,
+        lifeBuoy: <><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><line x1="4.93" y1="4.93" x2="9.17" y2="9.17"/><line x1="14.83" y1="14.83" x2="19.07" y2="19.07"/><line x1="14.83" y1="9.17" x2="19.07" y2="4.93"/><line x1="14.83" y1="9.17" x2="18.36" y2="5.64"/><line x1="4.93" y1="19.07" x2="9.17" y2="14.83"/></>,
+        smartphone: <><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/></>,
+        locateFixed: <><line x1="2" x2="5" y1="12" y2="12"/><line x1="19" x2="22" y1="12" y2="12"/><line x1="12" x2="12" y1="2" y2="5"/><line x1="12" x2="12" y1="19" y2="22"/><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="3"/></>,
+        download: <><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></>
+      };
+      return (
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className={className}
+          {...props}
+        >
+          {icons[name] || icons.shield}
+        </svg>
+      );
+    };
+
+    // User GPS & Destination
+    const USER_GPS = {
+      lat: 12.9716,
+      lng: 77.5946,
+      accuracy: "±3.2m",
+      address: "8th Main Rd, 100ft Corner, Indiranagar, Bengaluru",
+      x: 220,
+      y: 490,
+    };
+
+    const DESTINATIONS = [
+      { id: "metro", name: "Indiranagar Metro Station", x: 780, y: 160, distance: "2.4 km" },
+      { id: "home", name: "Greenwood Residency (Home)", x: 820, y: 380, distance: "2.1 km" }
+    ];
+
+    const ROUTE_DATA = {
+      safe: {
+        id: "safe",
+        name: "Safest / Well-Lit Route",
+        color: "#10B981",
+        distance: "2.4 km",
+        duration: "18 mins",
+        lightingIndex: 96,
+        cctvDensity: 4.9,
+        cctvCount: 14,
+        safetyScore: 98,
+        svgPath: "M 220 490 L 280 490 L 380 490 L 380 340 L 520 340 L 520 220 L 660 220 L 780 160",
+      },
+      fast: {
+        id: "fast",
+        name: "Fastest Direct Route",
+        color: "#EF4444",
+        distance: "1.7 km",
+        duration: "12 mins",
+        lightingIndex: 42,
+        cctvDensity: 1.8,
+        cctvCount: 3,
+        safetyScore: 58,
+        svgPath: "M 220 490 L 340 410 L 440 380 L 580 290 L 700 230 L 780 160",
+      },
+    };
+
+    const EMERGENCY_POIS = [
+      { id: "p1", name: "Central Police Station", category: "police", x: 480, y: 200, distance: "450 m", walkingTime: "4 min", phone: "+91 80 2294 2533", status: "Open 24/7 • Women Desk Active", badge: "Police Precinct", address: "CMH Road, Indiranagar" },
+      { id: "p2", name: "Pink Police Safe Outpost", category: "police", x: 350, y: 470, distance: "220 m", walkingTime: "2 min", phone: "1091", status: "Open 24/7 • Rapid Response", badge: "Women Safe Booth", address: "100 Ft Rd Junction" },
+      { id: "h1", name: "Metro Care Emergency Hospital", category: "hospital", x: 540, y: 360, distance: "600 m", walkingTime: "6 min", phone: "+91 80 4000 8900", status: "Open 24/7 • Trauma ER Active", badge: "Level 1 Trauma Care", address: "80 Feet Rd" },
+      { id: "s1", name: "SafeHub 24/7 Transit Cafe", category: "safehub", x: 360, y: 320, distance: "380 m", walkingTime: "4 min", phone: "+91 80 6192 1100", status: "Open 24/7 • Verified Safe Haven", badge: "Verified Safe Haven", address: "12th Main Rd Corner" },
+      { id: "m1", name: "Apollo 24/7 All-Night Chemist", category: "pharmacy", x: 290, y: 470, distance: "150 m", walkingTime: "1 min", phone: "+91 80 2521 4455", status: "Open 24/7 • Pharmacist On-Duty", badge: "24/7 Chemist", address: "8th Main Rd" }
+    ];
+
+    const CCTV_CAMERAS = [
+      { x: 250, y: 490 }, { x: 310, y: 490 }, { x: 380, y: 440 }, { x: 380, y: 340 },
+      { x: 520, y: 340 }, { x: 520, y: 220 }, { x: 660, y: 220 }, { x: 780, y: 160 }
+    ];
+
+    const STREET_LAMPS = [
+      { x: 230, y: 480 }, { x: 290, y: 480 }, { x: 350, y: 480 },
+      { x: 380, y: 410 }, { x: 380, y: 360 }, { x: 450, y: 340 },
+      { x: 520, y: 280 }, { x: 620, y: 220 }, { x: 720, y: 190 }
+    ];
+
+    const INITIAL_CONTACTS = [
+      { id: 1, name: "Radha Sharma", phone: "+91 98765 43210", relation: "Parent", isPrimary: true },
+      { id: 2, name: "Dr. Vikram Sharma", phone: "+91 98765 12345", relation: "Parent", isPrimary: false },
+      { id: 3, name: "Ananya Deshmukh", phone: "+91 98111 22334", relation: "Friend / Roommate", isPrimary: false },
+      { id: 4, name: "Kavya Menon", phone: "+91 99000 88776", relation: "Sibling", isPrimary: false },
+    ];
+
+    const HELPLINES = [
+      { number: "112", title: "National Emergency Number", category: "All-in-One Emergency", desc: "Single emergency response for Police, Fire, and Ambulance nationwide.", estimate: "< 4 mins response" },
+      { number: "100", title: "Police Dispatch Emergency", category: "Law Enforcement", desc: "Direct police patrol unit dispatch and local precinct control room.", estimate: "< 5 mins response" },
+      { number: "1091", title: "Women Dedicated Helpline", category: "Women Safety Cell", desc: "Specialized distress response team, staffed with female officers 24/7.", estimate: "Immediate Dispatch" },
+      { number: "102", title: "Ambulance Medical Services", category: "Medical & Trauma", desc: "Direct emergency medical ambulance with life-support triage dispatch.", estimate: "< 8 mins transit" },
+      { number: "181", title: "Women in Distress Helpline", category: "Legal & Crisis Support", desc: "Crisis counseling, immediate legal aid, and emergency refuge shelter.", estimate: "24/7 Counseling" },
+      { number: "1930", title: "Cyber Crime Emergency Helpline", category: "Digital Protection", desc: "Assistance with cyber stalking, harassment, and digital threats.", estimate: "Live Docket" }
+    ];
+
+    function SafeWayApp() {
+      const [activeTab, setActiveTab] = useState("map");
+      const [selectedRoute, setSelectedRoute] = useState("safe");
+      const [poiCategory, setPoiCategory] = useState("all");
+      const [selectedPoi, setSelectedPoi] = useState(null);
+      const [showLightingHeatmap, setShowLightingHeatmap] = useState(true);
+      const [showCctvMarkers, setShowCctvMarkers] = useState(true);
+      const [mapZoom, setMapZoom] = useState(1);
+
+      // SOS Grace & Audio
+      const [sosGraceActive, setSosGraceActive] = useState(false);
+      const [graceCountdown, setGraceCountdown] = useState(5);
+      const [sosEmergencyActive, setSosEmergencyActive] = useState(false);
+      const [sirenMuted, setSirenMuted] = useState(false);
+      const [strobeActive, setStrobeActive] = useState(false);
+
+      const audioCtxRef = useRef(null);
+      const sirenOscRef = useRef(null);
+      const sirenIntervalRef = useRef(null);
+
+      // Journey Timer
+      const [journeyMinutesInput, setJourneyMinutesInput] = useState(15);
+      const [journeyTimerSeconds, setJourneyTimerSeconds] = useState(0);
+      const [journeyTimerRunning, setJourneyTimerRunning] = useState(false);
+      const [journeyExpiredAlert, setJourneyExpiredAlert] = useState(false);
+      const [arrivedSafelySuccess, setArrivedSafelySuccess] = useState(false);
+
+      // Contacts & Sharing
+      const [contacts, setContacts] = useState(INITIAL_CONTACTS);
+      const [showAddContactModal, setShowAddContactModal] = useState(false);
+      const [newContactName, setNewContactName] = useState("");
+      const [newContactPhone, setNewContactPhone] = useState("");
+      const [newContactRelation, setNewContactRelation] = useState("Parent");
+      const [gpsCopiedToast, setGpsCopiedToast] = useState(false);
+      const [quickDialModal, setQuickDialModal] = useState(null);
+
+      // PWA & Physical Device GPS
+      const [deferredPrompt, setDeferredPrompt] = useState(null);
+      const [isInstallable, setIsInstallable] = useState(false);
+      const [isAppInstalled, setIsAppInstalled] = useState(false);
+      const [showInstallGuideModal, setShowInstallGuideModal] = useState(false);
+      const [usingRealGps, setUsingRealGps] = useState(false);
+      const [realGpsLoading, setRealGpsLoading] = useState(false);
+      const [currentGpsData, setCurrentGpsData] = useState(USER_GPS);
+
+      useEffect(() => {
+        if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true) {
+          setIsAppInstalled(true);
+        }
+        const handleBeforeInstall = (e) => {
+          e.preventDefault();
+          setDeferredPrompt(e);
+          setIsInstallable(true);
+        };
+        window.addEventListener('beforeinstallprompt', handleBeforeInstall);
+        return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+      }, []);
+
+      const handleInstallClick = async () => {
+        if (!deferredPrompt) {
+          setShowInstallGuideModal(true);
+          return;
+        }
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        if (outcome === 'accepted') {
+          setIsInstallable(false);
+          setIsAppInstalled(true);
+        }
+        setDeferredPrompt(null);
+      };
+
+      const toggleRealGps = () => {
+        if (usingRealGps) {
+          setUsingRealGps(false);
+          setCurrentGpsData(USER_GPS);
+          return;
+        }
+        if (!navigator.geolocation) {
+          alert("Geolocation is not supported by your device.");
+          return;
+        }
+        setRealGpsLoading(true);
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            setRealGpsLoading(false);
+            setUsingRealGps(true);
+            setCurrentGpsData({
+              lat: Number(pos.coords.latitude.toFixed(5)),
+              lng: Number(pos.coords.longitude.toFixed(5)),
+              accuracy: `±${Math.round(pos.coords.accuracy)}m`,
+              address: `Sensor Fix: ${pos.coords.latitude.toFixed(4)}° N, ${pos.coords.longitude.toFixed(4)}° E`,
+              x: 220,
+              y: 490,
+            });
+          },
+          (err) => {
+            setRealGpsLoading(false);
+            alert("Could not acquire sensor GPS. Defaulting to demo corridor.");
+          },
+          { enableHighAccuracy: true, timeout: 8000 }
+        );
+      };
+
+      // Siren Audio Synthesizer
+      const startSiren = useCallback(() => {
+        if (sirenMuted) return;
+        try {
+          if (!audioCtxRef.current) {
+            audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+          }
+          if (audioCtxRef.current.state === "suspended") audioCtxRef.current.resume();
+
+          stopSiren();
+          const ctx = audioCtxRef.current;
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = "sawtooth";
+          gain.gain.setValueAtTime(0.25, ctx.currentTime);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start();
+          sirenOscRef.current = osc;
+
+          let up = true, f = 650;
+          sirenIntervalRef.current = setInterval(() => {
+            if (up) { f += 120; if (f >= 1350) up = false; }
+            else { f -= 120; if (f <= 650) up = true; }
+            try { osc.frequency.setValueAtTime(f, ctx.currentTime); } catch(e){}
+          }, 80);
+        } catch (e) { console.log(e); }
+      }, [sirenMuted]);
+
+      const stopSiren = useCallback(() => {
+        if (sirenIntervalRef.current) clearInterval(sirenIntervalRef.current);
+        if (sirenOscRef.current) {
+          try { sirenOscRef.current.stop(); sirenOscRef.current.disconnect(); } catch(e){}
+          sirenOscRef.current = null;
+        }
+      }, []);
+
+      useEffect(() => {
+        if ((sosEmergencyActive || journeyExpiredAlert) && !sirenMuted) {
+          startSiren();
+        } else {
+          stopSiren();
+        }
+      }, [sosEmergencyActive, journeyExpiredAlert, sirenMuted, startSiren, stopSiren]);
+
+      // Grace Countdown
+      const triggerSosGrace = () => { setGraceCountdown(5); setSosGraceActive(true); };
+      const cancelSosGrace = () => { setSosGraceActive(false); setGraceCountdown(5); };
+      const confirmSos = useCallback(() => {
+        setSosGraceActive(false);
+        setSosEmergencyActive(true);
+        setStrobeActive(true);
+      }, []);
+
+      useEffect(() => {
+        let t;
+        if (sosGraceActive && graceCountdown > 0) {
+          t = setTimeout(() => setGraceCountdown(c => c - 1), 1000);
+        } else if (sosGraceActive && graceCountdown === 0) {
+          confirmSos();
+        }
+        return () => clearTimeout(t);
+      }, [sosGraceActive, graceCountdown, confirmSos]);
+
+      // Journey Timer
+      const startJourney = (m) => {
+        setJourneyTimerSeconds((m || journeyMinutesInput) * 60);
+        setJourneyTimerRunning(true);
+        setJourneyExpiredAlert(false);
+        setArrivedSafelySuccess(false);
+      };
+
+      const checkInSafely = () => {
+        setJourneyTimerRunning(false);
+        setJourneyTimerSeconds(0);
+        setJourneyExpiredAlert(false);
+        setArrivedSafelySuccess(true);
+        stopSiren();
+        setTimeout(() => setArrivedSafelySuccess(false), 5000);
+      };
+
+      useEffect(() => {
+        let i;
+        if (journeyTimerRunning && journeyTimerSeconds > 0) {
+          i = setInterval(() => setJourneyTimerSeconds(s => s - 1), 1000);
+        } else if (journeyTimerRunning && journeyTimerSeconds === 0) {
+          setJourneyTimerRunning(false);
+          setJourneyExpiredAlert(true);
+        }
+        return () => clearInterval(i);
+      }, [journeyTimerRunning, journeyTimerSeconds]);
+
+      const formatTime = (s) => {
+        const m = Math.floor(s / 60), sec = s % 60;
+        return `${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
+      };
+
+      const handleShareGps = () => {
+        const msg = `🚨 SafeWay Live GPS: I am sharing my live route.\nAddress: ${USER_GPS.address}\nLat/Lng: ${USER_GPS.lat}, ${USER_GPS.lng}\nTrack: https://safeway.app/live-track?token=sw_demo`;
+        navigator.clipboard?.writeText(msg);
+        setGpsCopiedToast(true);
+        setTimeout(() => setGpsCopiedToast(false), 3000);
+      };
+
+      const filteredPois = poiCategory === "all" ? EMERGENCY_POIS : EMERGENCY_POIS.filter(p => p.category === poiCategory);
+
+      return (
+        <div className={`min-h-screen bg-[#090D16] text-slate-100 flex flex-col font-sans ${strobeActive ? "animate-pulse" : ""}`}>
+          {/* Header */}
+          <header className="sticky top-0 z-40 bg-[#0F172A]/90 backdrop-blur border-b border-slate-800">
+            <div className="max-w-7xl mx-auto px-4 py-2.5 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-700 flex items-center justify-center text-white shadow-lg">
+                  <Icon name="shield" className="w-5 h-5" />
+                </div>
+                <div>
+                  <h1 className="text-lg font-black bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
+                    SafeWay
+                  </h1>
+                  <p className="text-[11px] text-slate-400 hidden sm:block">Women Safety Route Planner & Emergency Navigation</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 bg-[#1E293B] border border-slate-700 rounded-full px-3 py-1 text-xs">
+                  <span className={`w-2.5 h-2.5 rounded-full ${selectedRoute === "safe" ? "bg-emerald-400 animate-pulse" : "bg-amber-400"}`} />
+                  <span className="font-semibold hidden md:inline">{selectedRoute === "safe" ? "96% Well-Lit Safety Corridor" : "42% Well-Lit Shortcut"}</span>
+                  <span className="font-bold text-emerald-400">{selectedRoute === "safe" ? "98%" : "58%"}</span>
+                </div>
+
+                {journeyTimerRunning && (
+                  <button onClick={() => setActiveTab("journey")} className="bg-cyan-950 border border-cyan-500/60 text-cyan-300 px-2.5 py-1 rounded-full text-xs font-mono font-bold animate-pulse">
+                    {formatTime(journeyTimerSeconds)}
+                  </button>
+                )}
+
+                {!isAppInstalled && (
+                  <button
+                    onClick={handleInstallClick}
+                    className="flex items-center gap-1.5 bg-gradient-to-r from-emerald-500/20 to-teal-500/20 hover:from-emerald-500/30 border border-emerald-500/50 text-emerald-300 px-2.5 py-1 rounded-full text-xs font-bold transition-all shadow"
+                    title="Install SafeWay as App on phone or desktop"
+                  >
+                    <Icon name="smartphone" className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Install App</span>
+                  </button>
+                )}
+
+                <button onClick={() => setSirenMuted(!sirenMuted)} className="p-2 rounded-lg bg-slate-800 text-slate-300 border border-slate-700">
+                  <Icon name={sirenMuted ? "volumeX" : "volume2"} className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </header>
+
+          {/* Navigation Bar */}
+          <nav className="bg-[#111827] border-b border-slate-800 px-4 py-2">
+            <div className="max-w-7xl mx-auto flex items-center gap-2 sm:gap-4 overflow-x-auto no-scrollbar">
+              {[
+                { id: "map", label: "Map & Safe Routes", icon: "navigation" },
+                { id: "journey", label: "Journey Safety Timer", icon: "clock" },
+                { id: "contacts", label: `Contacts (${contacts.length}/5)`, icon: "userCheck" },
+                { id: "helplines", label: "Emergency Helplines", icon: "phoneCall" }
+              ].map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all shrink-0 ${
+                    activeTab === tab.id ? "bg-emerald-500 text-slate-950 font-bold shadow-md" : "bg-slate-800 text-slate-300 hover:text-white"
+                  }`}
+                >
+                  <Icon name={tab.icon} className="w-4 h-4" />
+                  <span>{tab.label}</span>
+                </button>
+              ))}
+            </div>
+          </nav>
+
+          {/* Warning Banners */}
+          {journeyExpiredAlert && (
+            <div className="bg-red-600 text-white px-4 py-3 border-b-2 border-red-400 flex items-center justify-between flex-wrap gap-2 animate-bounce">
+              <div className="flex items-center gap-2">
+                <Icon name="alertTriangle" className="w-6 h-6 text-amber-200" />
+                <span className="font-extrabold text-sm">ALERT: Journey Timer Expired Without Safe Arrival Check-In!</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button onClick={checkInSafely} className="bg-white text-red-700 px-3 py-1 rounded-lg text-xs font-bold">I Am Safe</button>
+                <button onClick={triggerSosGrace} className="bg-slate-950 text-white px-3 py-1 rounded-lg text-xs font-bold">Trigger SOS</button>
+              </div>
+            </div>
+          )}
+
+          {arrivedSafelySuccess && (
+            <div className="bg-emerald-600 text-white px-4 py-2 flex items-center justify-between text-xs font-bold">
+              <span>✓ Journey Completed Safely! Emergency contacts notified.</span>
+              <button onClick={() => setArrivedSafelySuccess(false)}>✕</button>
+            </div>
+          )}
+
+          {/* Main Content */}
+          <main className="flex-1 max-w-7xl w-full mx-auto p-4 flex flex-col gap-4">
+            {activeTab === "map" && (
+              <div className="flex flex-col lg:grid lg:grid-cols-12 gap-4 flex-1">
+                <div className="lg:col-span-8 flex flex-col gap-3">
+                  {/* POI Bar */}
+                  <div className="bg-[#1E293B] border border-slate-800 rounded-2xl p-2.5 flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+                      {["all", "police", "hospital", "safehub", "pharmacy"].map(c => (
+                        <button
+                          key={c}
+                          onClick={() => setPoiCategory(c)}
+                          className={`px-3 py-1 rounded-lg text-xs font-semibold capitalize ${
+                            poiCategory === c ? "bg-sky-500 text-slate-950 font-bold" : "bg-slate-800 text-slate-300"
+                          }`}
+                        >
+                          {c}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={toggleRealGps}
+                        className={`px-2 py-1 rounded text-xs font-semibold flex items-center gap-1 border ${
+                          usingRealGps ? "bg-emerald-950 text-emerald-300 border-emerald-500" : "bg-slate-800 text-slate-300 border-slate-700"
+                        }`}
+                      >
+                        <Icon name="locateFixed" className={`w-3.5 h-3.5 ${usingRealGps ? "text-emerald-400" : "text-slate-400"}`} />
+                        <span>{realGpsLoading ? "Fixing..." : usingRealGps ? "Sensor GPS" : "Device GPS"}</span>
+                      </button>
+                      <button onClick={() => setShowLightingHeatmap(!showLightingHeatmap)} className={`px-2 py-1 rounded text-xs border ${showLightingHeatmap ? "bg-emerald-950 text-emerald-300 border-emerald-700" : "bg-slate-800 text-slate-400"}`}>
+                        Lighting
+                      </button>
+                      <button onClick={() => setShowCctvMarkers(!showCctvMarkers)} className={`px-2 py-1 rounded text-xs border ${showCctvMarkers ? "bg-cyan-950 text-cyan-300 border-cyan-700" : "bg-slate-800 text-slate-400"}`}>
+                        CCTV
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* SVG Map Canvas */}
+                  <div className="relative aspect-[16/10] bg-[#0A0F1D] border-2 border-slate-800 rounded-2xl overflow-hidden shadow-2xl">
+                    <div className="absolute top-3 left-3 bg-[#0F172A]/90 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-slate-200">
+                      <span className="text-emerald-400 font-bold">{usingRealGps ? "Sensor GPS:" : "Live GPS:"}</span> {currentGpsData.address}
+                    </div>
+
+                    <svg viewBox="0 0 1000 700" className="w-full h-full select-none">
+                      <rect width="1000" height="700" fill="#090D16" />
+
+                      {/* City Blocks */}
+                      <g opacity="0.3" fill="#131C2E" stroke="#1E293B" strokeWidth="2">
+                        <rect x="50" y="50" width="150" height="180" rx="8" />
+                        <rect x="230" y="50" width="220" height="180" rx="8" />
+                        <rect x="480" y="50" width="220" height="130" rx="8" />
+                        <rect x="420" y="380" width="160" height="150" rx="12" fill="#0C1F17" stroke="#0F3826" />
+                        <rect x="620" y="380" width="280" height="150" rx="8" />
+                        <rect x="50" y="550" width="850" height="100" rx="8" />
+                      </g>
+
+                      {/* Streets */}
+                      <g stroke="#1E293B" strokeWidth="32" strokeLinecap="round" fill="none">
+                        <line x1="40" y1="230" x2="960" y2="230" />
+                        <line x1="40" y1="490" x2="960" y2="490" />
+                        <line x1="380" y1="40" x2="380" y2="660" />
+                        <line x1="520" y1="40" x2="520" y2="660" />
+                      </g>
+
+                      {/* Lighting Heatmap */}
+                      {showLightingHeatmap && (
+                        <g>
+                          {STREET_LAMPS.map((l, i) => (
+                            <circle key={i} cx={l.x} cy={l.y} r="45" fill="rgba(16, 185, 129, 0.18)" />
+                          ))}
+                        </g>
+                      )}
+
+                      {/* Routes */}
+                      <path
+                        d={ROUTE_DATA.fast.svgPath}
+                        fill="none"
+                        stroke={selectedRoute === "fast" ? "#EF4444" : "#7F1D1D"}
+                        strokeWidth={selectedRoute === "fast" ? "7" : "3"}
+                        className="cursor-pointer"
+                        onClick={() => setSelectedRoute("fast")}
+                      />
+                      <path
+                        d={ROUTE_DATA.safe.svgPath}
+                        fill="none"
+                        stroke={selectedRoute === "safe" ? "#10B981" : "#065F46"}
+                        strokeWidth={selectedRoute === "safe" ? "8" : "4"}
+                        className="cursor-pointer"
+                        onClick={() => setSelectedRoute("safe")}
+                      />
+
+                      {/* CCTV */}
+                      {showCctvMarkers && CCTV_CAMERAS.map((c, i) => (
+                        <circle key={i} cx={c.x} cy={c.y} r="5" fill="#38BDF8" stroke="#0C4A6E" strokeWidth="2" />
+                      ))}
+
+                      {/* POIs */}
+                      {filteredPois.map(p => (
+                        <g key={p.id} transform={`translate(${p.x}, ${p.y})`} className="cursor-pointer" onClick={() => setSelectedPoi(p)}>
+                          <circle cx="0" cy="0" r="14" fill="#0F172A" stroke={p.category === "police" ? "#3B82F6" : p.category === "hospital" ? "#EF4444" : "#10B981"} strokeWidth="2" />
+                          <circle cx="0" cy="0" r="7" fill={p.category === "police" ? "#3B82F6" : p.category === "hospital" ? "#EF4444" : "#10B981"} />
+                          <text x="0" y="-18" textAnchor="middle" fill="#FFFFFF" fontSize="10" fontWeight="bold">{p.name.split(" ")[0]}</text>
+                        </g>
+                      ))}
+
+                      {/* Live GPS */}
+                      <g transform={`translate(${USER_GPS.x}, ${USER_GPS.y})`}>
+                        <circle cx="0" cy="0" r="28" fill="rgba(56, 189, 248, 0.25)" className="animate-ping" />
+                        <circle cx="0" cy="0" r="10" fill="#0284C7" stroke="#FFFFFF" strokeWidth="2.5" />
+                        <text x="0" y="24" textAnchor="middle" fill="#38BDF8" fontSize="10" fontWeight="bold">YOU</text>
+                      </g>
+                    </svg>
+                  </div>
+                </div>
+
+                {/* Right Panel */}
+                <div className="lg:col-span-4 flex flex-col gap-4">
+                  <div className="bg-[#1E293B] border border-slate-800 rounded-2xl p-4 flex flex-col gap-3">
+                    <h3 className="text-sm font-bold text-white">Route Selection</h3>
+
+                    <div
+                      onClick={() => setSelectedRoute("safe")}
+                      className={`p-3 rounded-xl border-2 cursor-pointer ${
+                        selectedRoute === "safe" ? "bg-emerald-950/40 border-emerald-500" : "bg-slate-900 border-slate-800"
+                      }`}
+                    >
+                      <h4 className="text-sm font-bold text-emerald-400">Safest / Well-Lit Route</h4>
+                      <p className="text-xs text-slate-300">96% Lighting • 14 CCTVs • 2.4 km (18 min)</p>
+                    </div>
+
+                    <div
+                      onClick={() => setSelectedRoute("fast")}
+                      className={`p-3 rounded-xl border-2 cursor-pointer ${
+                        selectedRoute === "fast" ? "bg-red-950/40 border-red-500" : "bg-slate-900 border-slate-800"
+                      }`}
+                    >
+                      <h4 className="text-sm font-bold text-red-400">Fastest Direct Route</h4>
+                      <p className="text-xs text-slate-300">42% Lighting • 3 CCTVs • 1.7 km (12 min)</p>
+                    </div>
+
+                    <button
+                      onClick={() => { startJourney(selectedRoute === "safe" ? 18 : 12); setActiveTab("journey"); }}
+                      className="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs uppercase"
+                    >
+                      Start Safe Navigation
+                    </button>
+                  </div>
+
+                  {selectedPoi && (
+                    <div className="bg-[#1E293B] border-2 border-sky-500 rounded-2xl p-4 flex flex-col gap-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs font-bold text-sky-400">{selectedPoi.badge}</span>
+                        <button onClick={() => setSelectedPoi(null)} className="text-slate-400">✕</button>
+                      </div>
+                      <h4 className="text-sm font-bold text-white">{selectedPoi.name}</h4>
+                      <p className="text-xs text-slate-300">{selectedPoi.address} • {selectedPoi.distance} ({selectedPoi.walkingTime})</p>
+                      <p className="text-xs text-emerald-400">{selectedPoi.status}</p>
+                      <div className="flex gap-2 mt-2">
+                        <button onClick={() => setQuickDialModal({ name: selectedPoi.name, number: selectedPoi.phone })} className="flex-1 py-2 bg-emerald-600 text-white text-xs font-bold rounded-xl">
+                          Speed Dial
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* TAB 2: Journey Timer */}
+            {activeTab === "journey" && (
+              <div className="max-w-2xl mx-auto w-full bg-[#1E293B] border border-slate-800 rounded-2xl p-6 flex flex-col gap-4">
+                <h3 className="text-lg font-bold text-white">Journey Safety Timer</h3>
+                <div className="bg-slate-950 rounded-2xl py-8 text-center">
+                  <div className="text-6xl font-mono font-black text-white">{formatTime(journeyTimerSeconds)}</div>
+                  <p className="text-xs text-slate-400 mt-2">Destination: Indiranagar Metro Station</p>
+                </div>
+
+                {journeyTimerRunning ? (
+                  <button onClick={checkInSafely} className="w-full py-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-2xl text-base uppercase">
+                    I Have Arrived Safely [Check In]
+                  </button>
+                ) : (
+                  <div className="flex gap-2">
+                    {[5, 15, 30, 45].map(m => (
+                      <button key={m} onClick={() => startJourney(m)} className="flex-1 py-3 bg-slate-800 text-white rounded-xl text-xs font-bold hover:bg-emerald-500 hover:text-black">
+                        {m} Mins
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* TAB 3: Contacts */}
+            {activeTab === "contacts" && (
+              <div className="max-w-2xl mx-auto w-full flex flex-col gap-3">
+                <div className="flex justify-between items-center bg-[#1E293B] p-4 rounded-2xl">
+                  <h3 className="font-bold text-white">Emergency Contacts ({contacts.length}/5)</h3>
+                  <button onClick={handleShareGps} className="px-3 py-1.5 bg-slate-800 text-emerald-400 text-xs font-bold rounded-xl">
+                    Share Live GPS
+                  </button>
+                </div>
+                {contacts.map(c => (
+                  <div key={c.id} className="bg-[#1E293B] p-4 rounded-2xl flex justify-between items-center">
+                    <div>
+                      <h4 className="font-bold text-white text-sm">{c.name} {c.isPrimary && "★ (Primary)"}</h4>
+                      <p className="text-xs text-slate-400">{c.phone} • {c.relation}</p>
+                    </div>
+                    <button onClick={() => setQuickDialModal({ name: c.name, number: c.phone })} className="px-3 py-1.5 bg-emerald-950 text-emerald-400 rounded-xl text-xs font-bold">
+                      Call
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* TAB 4: Helplines */}
+            {activeTab === "helplines" && (
+              <div className="max-w-3xl mx-auto w-full grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {HELPLINES.map(h => (
+                  <div key={h.number} className="bg-[#1E293B] border border-slate-800 p-4 rounded-2xl flex flex-col justify-between gap-3">
+                    <div>
+                      <div className="flex justify-between">
+                        <span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded text-slate-300">{h.category}</span>
+                        <span className="text-xl font-black text-emerald-400">{h.number}</span>
+                      </div>
+                      <h4 className="font-bold text-white mt-1">{h.title}</h4>
+                      <p className="text-xs text-slate-400">{h.desc}</p>
+                    </div>
+                    <button onClick={() => setQuickDialModal({ name: h.title, number: h.number })} className="py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs">
+                      Speed Dial {h.number}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </main>
+
+          {/* Floating SOS */}
+          <div className="fixed bottom-6 right-6 z-50">
+            <button
+              onClick={triggerSosGrace}
+              className="w-20 h-20 rounded-full bg-gradient-to-br from-red-500 to-rose-700 text-white font-black text-xl shadow-2xl flex flex-col items-center justify-center border-4 border-red-400/80 active:scale-95"
+            >
+              <Icon name="siren" className="w-6 h-6 animate-pulse" />
+              <span className="text-xs mt-0.5">SOS</span>
+            </button>
+          </div>
+
+          {/* Grace Countdown Modal */}
+          {sosGraceActive && (
+            <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4">
+              <div className="max-w-sm w-full bg-slate-900 border-2 border-red-500 rounded-3xl p-6 text-center flex flex-col items-center gap-4">
+                <span className="text-xs font-bold text-red-400 uppercase">Emergency Grace Countdown</span>
+                <div className="text-6xl font-mono font-black text-red-500">{graceCountdown}</div>
+                <p className="text-xs text-slate-300">Dispatching police & contacts. Press cancel if accidental.</p>
+                <div className="flex gap-2 w-full">
+                  <button onClick={cancelSosGrace} className="flex-1 py-3 bg-slate-800 text-white font-bold rounded-xl text-xs">Cancel</button>
+                  <button onClick={confirmSos} className="flex-1 py-3 bg-red-600 text-white font-bold rounded-xl text-xs">Dispatch Now</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Active SOS Overlay */}
+          {sosEmergencyActive && (
+            <div className="fixed inset-0 z-50 bg-red-950/95 flex flex-col justify-between p-6 overflow-y-auto">
+              <div className="flex justify-between items-center max-w-2xl mx-auto w-full">
+                <h2 className="text-2xl font-black text-red-400">🚨 EMERGENCY DISPATCH ACTIVE</h2>
+                <button onClick={() => setSirenMuted(!sirenMuted)} className="px-3 py-1.5 bg-red-900 text-white rounded-xl text-xs font-bold">
+                  {sirenMuted ? "Unmute" : "Mute Siren"}
+                </button>
+              </div>
+
+              <div className="max-w-2xl mx-auto w-full bg-black/80 border border-red-700 rounded-3xl p-6 my-6 flex flex-col gap-4">
+                <div>
+                  <span className="text-xs text-red-400 font-bold uppercase">Broadcasted Location</span>
+                  <p className="text-sm text-white font-semibold">{USER_GPS.address}</p>
+                  <p className="text-xs text-slate-400 font-mono">Lat: {USER_GPS.lat}° N, Lng: {USER_GPS.lng}° E</p>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <a href="tel:112" className="py-3 bg-red-600 text-white font-bold rounded-xl text-center text-xs">Call 112</a>
+                  <a href="tel:100" className="py-3 bg-blue-600 text-white font-bold rounded-xl text-center text-xs">Call 100</a>
+                  <a href="tel:1091" className="py-3 bg-pink-600 text-white font-bold rounded-xl text-center text-xs">Call 1091</a>
+                </div>
+              </div>
+
+              <button
+                onClick={() => { setSosEmergencyActive(false); setStrobeActive(false); stopSiren(); }}
+                className="max-w-md mx-auto w-full py-4 bg-emerald-600 text-white font-black rounded-2xl text-sm uppercase"
+              >
+                I Am Safe Now (Stop Emergency)
+              </button>
+            </div>
+          )}
+
+          {/* Quick Dial Modal */}
+          {quickDialModal && (
+            <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+              <div className="bg-[#1E293B] border border-slate-700 p-5 rounded-2xl text-center max-w-xs w-full flex flex-col gap-3">
+                <h4 className="font-bold text-white text-base">{quickDialModal.name}</h4>
+                <p className="text-emerald-400 font-mono text-sm">{quickDialModal.number}</p>
+                <div className="flex gap-2">
+                  <button onClick={() => setQuickDialModal(null)} className="flex-1 py-2 bg-slate-800 text-slate-300 rounded-xl text-xs">Cancel</button>
+                  <a href={`tel:${quickDialModal.number}`} onClick={() => setQuickDialModal(null)} className="flex-1 py-2 bg-emerald-500 text-black font-bold rounded-xl text-xs">Call</a>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Toast */}
+          {gpsCopiedToast && (
+            <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 bg-slate-900 border border-emerald-500 text-white px-4 py-2 rounded-full text-xs font-bold">
+              ✓ Live GPS tracking message copied to clipboard!
+            </div>
+          )}
+
+          {/* Install Guide Modal */}
+          {showInstallGuideModal && (
+            <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
+              <div className="max-w-sm w-full bg-[#1E293B] border border-slate-700 rounded-3xl p-6 flex flex-col gap-4 text-xs">
+                <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+                  <h4 className="font-bold text-white text-sm flex items-center gap-1.5">
+                    <Icon name="smartphone" className="w-4 h-4 text-emerald-400" />
+                    <span>Install SafeWay App</span>
+                  </h4>
+                  <button onClick={() => setShowInstallGuideModal(false)} className="text-slate-400">✕</button>
+                </div>
+                <div className="bg-slate-900 p-3 rounded-xl">
+                  <strong className="text-emerald-400">📱 Android (Chrome / Edge):</strong>
+                  <p className="text-slate-300 mt-1">Tap the 3-dot menu (⋮) -> tap <strong>"Install app"</strong> or <strong>"Add to Home screen"</strong>.</p>
+                </div>
+                <div className="bg-slate-900 p-3 rounded-xl">
+                  <strong className="text-sky-400">🍎 iPhone / iPad (Safari):</strong>
+                  <p className="text-slate-300 mt-1">Tap the Share button (⎋) -> scroll down -> tap <strong>"Add to Home Screen"</strong>.</p>
+                </div>
+                <div className="bg-slate-900 p-3 rounded-xl">
+                  <strong className="text-amber-400">💻 PC / Laptop:</strong>
+                  <p className="text-slate-300 mt-1">Click the install icon (⊕) in the URL address bar to install on Windows/Mac.</p>
+                </div>
+                <button onClick={() => setShowInstallGuideModal(false)} className="py-2.5 bg-emerald-500 font-bold text-slate-950 rounded-xl uppercase">
+                  Got It
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<SafeWayApp />);
+  </script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').catch(() => {});
+      });
+    }
+  </script>
+</body>
+</html>

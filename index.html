@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SafeWay - Women Safety Route Planner & Emergency Navigation</title>
+
+  <!-- External Stylesheet -->
+  <link rel="stylesheet" href="style.css">
+
+  <!-- Leaflet Map CSS for Real Interactive Map -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <!-- Font Awesome Icons for standard icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+</head>
+<body>
+
+  <!-- =================================================================== -->
+  <!-- 1. TOP HEADER & SAFETY STATUS BAR                                   -->
+  <!-- =================================================================== -->
+  <header class="navbar">
+    <div class="nav-container">
+      <div class="brand">
+        <div class="brand-icon">
+          <i class="fa-solid fa-shield-halved"></i>
+        </div>
+        <div>
+          <div class="brand-title">SafeWay <span class="badge-mini">B.Tech Mini-Project</span></div>
+          <div class="brand-subtitle">Smart Route Planner & Women Safety Navigation</div>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <!-- Live Safety Index Badge -->
+        <div class="safety-score-pill" id="safetyScorePill">
+          <span class="status-dot"></span>
+          <span class="score-text" id="safetyScoreText">High Safety Zone • 96% Well-Lit</span>
+          <span class="score-number" id="safetyScoreNumber">98%</span>
+        </div>
+
+        <!-- Journey Timer Active Indicator (Hidden by default) -->
+        <div class="header-timer-pill" id="headerTimerPill" onclick="showPage('journey')" style="display: none;">
+          <i class="fa-regular fa-clock"></i>
+          <span id="headerTimerDisplay">15:00</span>
+        </div>
+
+        <!-- Siren Mute / Unmute Button -->
+        <button class="icon-btn" id="sirenToggleBtn" title="Toggle Siren Sound" onclick="toggleSirenMute()">
+          <i class="fa-solid fa-volume-high" id="sirenIcon"></i>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- =================================================================== -->
+  <!-- 2. MAIN NAVIGATION TABS (5 PAGES)                                   -->
+  <!-- =================================================================== -->
+  <nav class="tab-bar">
+    <div class="tab-container">
+      <button class="tab-btn active" id="tab-livemap" onclick="showPage('livemap')">
+        <i class="fa-solid fa-location-dot"></i> Live Location & Nearby
+      </button>
+      <button class="tab-btn" id="tab-routes" onclick="showPage('routes')">
+        <i class="fa-solid fa-route"></i> Safe Route Planner
+      </button>
+      <button class="tab-btn" id="tab-journey" onclick="showPage('journey')">
+        <i class="fa-regular fa-clock"></i> Journey Safety Timer
+      </button>
+      <button class="tab-btn" id="tab-contacts" onclick="showPage('contacts')">
+        <i class="fa-solid fa-user-shield"></i> Emergency Contacts (<span id="contactCount">4</span>/5)
+      </button>
+      <button class="tab-btn" id="tab-helplines" onclick="showPage('helplines')">
+        <i class="fa-solid fa-phone-volume"></i> 24/7 Helplines
+      </button>
+    </div>
+  </nav>
+
+  <!-- =================================================================== -->
+  <!-- ALERT BANNER: TRIGGERED IF JOURNEY TIMER EXPIRES                   -->
+  <!-- =================================================================== -->
+  <div class="alert-banner" id="journeyAlertBanner" style="display: none;">
+    <div class="alert-content">
+      <i class="fa-solid fa-triangle-exclamation"></i>
+      <div>
+        <strong>CRITICAL ALERT: Journey Timer Expired Without Safe Check-In!</strong>
+        <p>Emergency SMS alert dispatched to trusted contacts with last known GPS coordinates.</p>
+      </div>
+    </div>
+    <div class="alert-actions">
+      <button class="btn btn-white" onclick="dismissJourneyAlert()">I Am Safe (Dismiss)</button>
+      <button class="btn btn-red" onclick="startSOSCountdown()">Trigger Police SOS</button>
+    </div>
+  </div>
+
+  <!-- Safe Arrival Confirmation Toast -->
+  <div class="success-banner" id="arrivalSuccessBanner" style="display: none;">
+    <i class="fa-solid fa-circle-check"></i>
+    <span>Journey completed safely! Your contacts have been notified of your safe arrival.</span>
+    <button class="close-btn" onclick="document.getElementById('arrivalSuccessBanner').style.display='none'">&times;</button>
+  </div>
+
+  <!-- =================================================================== -->
+  <!-- 3. MAIN CONTENT CONTAINER                                           -->
+  <!-- =================================================================== -->
+  <main class="main-container">
+
+    <!-- --------------------------------------------------------------- -->
+    <!-- PAGE 1: LIVE LOCATION & NEARBY EMERGENCY PLACES                 -->
+    <!-- --------------------------------------------------------------- -->
+    <section class="page-section active" id="page-livemap">
+      <!-- Live GPS Telemetry Bar -->
+      <div class="card telemetry-card">
+        <div class="telemetry-info">
+          <div class="pulse-indicator">
+            <i class="fa-solid fa-crosshairs"></i>
+          </div>
+          <div>
+            <div class="telemetry-tags">
+              <span class="badge badge-sky" id="gpsModeTag">Live GPS Sensor</span>
+              <span class="badge badge-emerald" id="gpsAccuracyTag">Accuracy: ±3.2m</span>
+            </div>
+            <h3 class="location-address" id="liveAddressText">8th Main Rd, 100ft Corner, Indiranagar, Bengaluru</h3>
+            <div class="location-coords">
+              Lat: <span id="liveLat">12.9716</span>° N &bull; Lng: <span id="liveLng">77.5946</span>° E
+            </div>
+          </div>
+        </div>
+
+        <div class="telemetry-btns">
+          <button class="btn btn-primary" onclick="detectLiveGPS()">
+            <i class="fa-solid fa-location-crosshairs"></i> Get My Real GPS
+          </button>
+          <button class="btn btn-secondary" onclick="recenterMap()">
+            <i class="fa-solid fa-arrows-to-dot"></i> Center Map
+          </button>
+          <button class="btn btn-secondary" onclick="shareLiveGPS()">
+            <i class="fa-solid fa-share-nodes"></i> Share Live Pin
+          </button>
+        </div>
+      </div>
+
+      <!-- Map & Nearby Places Grid Layout -->
+      <div class="grid-2col">
+        <!-- Interactive Leaflet Map Canvas -->
+        <div class="map-wrapper">
+          <div id="leaflet-map"></div>
+          <div class="map-floating-pill">
+            <span class="status-dot"></span>
+            <strong>Live Radar Map</strong> &bull; Dark Mode OpenStreetMap
+          </div>
+          <div class="map-legend">
+            <span><span class="legend-dot dot-blue"></span> Police</span>
+            <span><span class="legend-dot dot-red"></span> Hospital</span>
+            <span><span class="legend-dot dot-green"></span> Safe Hub</span>
+            <span><span class="legend-dot dot-cyan"></span> Pharmacy</span>
+          </div>
+        </div>
+
+        <!-- Nearby Facilities List & Filter Drawer -->
+        <div class="card nearby-panel">
+          <div class="panel-header">
+            <h3><i class="fa-solid fa-shield"></i> Nearby Emergency Facilities</h3>
+            <span class="badge badge-secondary" id="placesCountBadge">8 Places Nearby</span>
+          </div>
+
+          <!-- Category Filter Buttons -->
+          <div class="filter-pills">
+            <button class="filter-btn active" onclick="filterPlaces('all')">All</button>
+            <button class="filter-btn" onclick="filterPlaces('police')">Police</button>
+            <button class="filter-btn" onclick="filterPlaces('hospital')">Hospitals</button>
+            <button class="filter-btn" onclick="filterPlaces('safehub')">Safe Hubs</button>
+            <button class="filter-btn" onclick="filterPlaces('pharmacy')">Pharmacies</button>
+          </div>
+
+          <!-- Radius Selector -->
+          <div class="radius-filter">
+            <span class="radius-label">Distance Filter:</span>
+            <button class="radius-btn active" onclick="filterRadius(9999)">All</button>
+            <button class="radius-btn" onclick="filterRadius(500)">&lt; 500m</button>
+            <button class="radius-btn" onclick="filterRadius(1000)">&lt; 1km</button>
+            <button class="radius-btn" onclick="filterRadius(2500)">&lt; 2.5km</button>
+          </div>
+
+          <!-- Scrollable Places List -->
+          <div class="places-list" id="placesListContainer">
+            <!-- Dynamically populated by script.js -->
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- --------------------------------------------------------------- -->
+    <!-- PAGE 2: SAFE ROUTE PLANNER (SAFE VS DIRECT ROUTE)               -->
+    <!-- --------------------------------------------------------------- -->
+    <section class="page-section" id="page-routes">
+      <div class="grid-2col">
+        <!-- SVG Interactive City Map Canvas -->
+        <div class="card svg-map-container">
+          <div class="svg-map-header">
+            <span class="badge badge-emerald">Route Comparison View</span>
+            <span class="text-muted">Indiranagar Safe Corridor &bull; Bengaluru</span>
+          </div>
+
+          <!-- Vector City Map with Routes -->
+          <svg viewBox="0 0 1000 700" class="svg-map" id="citySvgMap">
+            <!-- Background -->
+            <rect width="1000" height="700" fill="#090d16" />
+
+            <!-- City Blocks -->
+            <g fill="#131c2e" stroke="#1e293b" stroke-width="2" opacity="0.6">
+              <rect x="50" y="50" width="140" height="180" rx="6" />
+              <rect x="230" y="50" width="220" height="180" rx="6" />
+              <rect x="490" y="50" width="220" height="130" rx="6" />
+              <rect x="420" y="380" width="160" height="150" rx="10" fill="#0c1f17" stroke="#0f3826" />
+              <rect x="620" y="380" width="280" height="150" rx="6" />
+              <rect x="50" y="550" width="850" height="100" rx="6" />
+            </g>
+
+            <!-- Street Network -->
+            <g stroke="#1e293b" stroke-width="32" stroke-linecap="round" fill="none">
+              <line x1="40" y1="230" x2="960" y2="230" />
+              <line x1="40" y1="490" x2="960" y2="490" />
+              <line x1="380" y1="40" x2="380" y2="660" />
+              <line x1="520" y1="40" x2="520" y2="660" />
+              <line x1="40" y1="340" x2="720" y2="340" />
+            </g>
+
+            <!-- Street Center Dotted Lines -->
+            <g stroke="#334155" stroke-width="2" stroke-dasharray="8 8" fill="none">
+              <line x1="40" y1="230" x2="960" y2="230" />
+              <line x1="40" y1="490" x2="960" y2="490" />
+              <line x1="380" y1="40" x2="380" y2="660" />
+              <line x1="520" y1="40" x2="520" y2="660" />
+            </g>
+
+            <!-- Street Lighting Glow Zones (Green halos) -->
+            <g id="lightingGlowLayer">
+              <circle cx="280" cy="490" r="45" fill="rgba(16, 185, 129, 0.15)" />
+              <circle cx="380" cy="490" r="45" fill="rgba(16, 185, 129, 0.15)" />
+              <circle cx="380" cy="340" r="45" fill="rgba(16, 185, 129, 0.15)" />
+              <circle cx="520" cy="340" r="45" fill="rgba(16, 185, 129, 0.15)" />
+              <circle cx="520" cy="220" r="45" fill="rgba(16, 185, 129, 0.15)" />
+              <circle cx="660" cy="220" r="45" fill="rgba(16, 185, 129, 0.15)" />
+              <!-- Dark Alley Hazard -->
+              <circle cx="440" cy="380" r="30" fill="rgba(239, 68, 68, 0.2)" />
+            </g>
+
+            <!-- ROUTE 2: Fastest Direct Route (Red Line) -->
+            <path id="svgFastRoute" d="M 220 490 L 340 410 L 440 380 L 580 290 L 700 230 L 780 160"
+                  fill="none" stroke="#7f1d1d" stroke-width="4" stroke-dasharray="6 6" stroke-linecap="round" />
+
+            <!-- ROUTE 1: Safest Well-Lit Route (Emerald Green Line) -->
+            <path id="svgSafeRoute" d="M 220 490 L 280 490 L 380 490 L 380 340 L 520 340 L 520 220 L 660 220 L 780 160"
+                  fill="none" stroke="#10b981" stroke-width="8" stroke-linecap="round" />
+
+            <!-- Active Flow Arrow Animation -->
+            <path id="svgFlowAnimation" d="M 220 490 L 280 490 L 380 490 L 380 340 L 520 340 L 520 220 L 660 220 L 780 160"
+                  fill="none" stroke="#ffffff" stroke-width="2.5" stroke-dasharray="6 18" stroke-linecap="round" class="route-dash" />
+
+            <!-- Destination Flag Marker -->
+            <g transform="translate(780, 160)">
+              <circle cx="0" cy="0" r="16" fill="#10b981" stroke="#ffffff" stroke-width="2" />
+              <text x="0" y="5" text-anchor="middle" fill="#ffffff" font-size="12" font-weight="bold">&#9873;</text>
+              <text x="0" y="-22" text-anchor="middle" fill="#10b981" font-size="12" font-weight="bold">Metro Station</text>
+            </g>
+
+            <!-- Start User Location Marker -->
+            <g transform="translate(220, 490)">
+              <circle cx="0" cy="0" r="24" fill="rgba(56, 189, 248, 0.3)" class="pulsing-halo" />
+              <circle cx="0" cy="0" r="10" fill="#0284c7" stroke="#ffffff" stroke-width="2.5" />
+              <text x="0" y="24" text-anchor="middle" fill="#38bdf8" font-size="11" font-weight="bold">START (YOU)</text>
+            </g>
+          </svg>
+
+          <div class="svg-map-legend">
+            <span><span class="legend-bar bar-green"></span> Safest Route (96% Lit)</span>
+            <span><span class="legend-bar bar-red"></span> Direct Shortcut (42% Lit)</span>
+            <span><i class="fa-solid fa-video text-cyan"></i> 14 Active CCTVs</span>
+          </div>
+        </div>
+
+        <!-- Route Options Selection Cards -->
+        <div class="card route-panel">
+          <h3><i class="fa-solid fa-sliders"></i> Multi-Criteria Route Options</h3>
+          <p class="text-muted text-sm">Select a route to preview safety parameters & camera coverage:</p>
+
+          <!-- Route 1 Card: Safest Route -->
+          <div class="route-card active" id="card-route-safe" onclick="selectRouteOption('safe')">
+            <div class="route-card-header">
+              <div class="route-title-group">
+                <span class="status-dot green"></span>
+                <strong>Safest / Well-Lit Route</strong>
+              </div>
+              <span class="badge badge-emerald">Safety Score 98%</span>
+            </div>
+            <p class="route-desc">Follows 100ft main commercial roads with high-lumen streetlighting, active shops, and police presence.</p>
+            
+            <div class="metrics-grid">
+              <div class="metric-box">
+                <span class="metric-label">Lighting</span>
+                <span class="metric-val text-green">96%</span>
+              </div>
+              <div class="metric-box">
+                <span class="metric-label">CCTVs</span>
+                <span class="metric-val text-cyan">14 Poles</span>
+              </div>
+              <div class="metric-box">
+                <span class="metric-label">Distance</span>
+                <span class="metric-val">2.4 km</span>
+              </div>
+              <div class="metric-box">
+                <span class="metric-label">Walk ETA</span>
+                <span class="metric-val">18 mins</span>
+              </div>
+            </div>
+
+            <div class="route-footer">
+              <span class="text-green"><i class="fa-solid fa-shield-heart"></i> 4 Safe Shelters en-route</span>
+              <span class="text-muted">Police Patrol: Every 12m</span>
+            </div>
+          </div>
+
+          <!-- Route 2 Card: Fastest Direct Route -->
+          <div class="route-card" id="card-route-fast" onclick="selectRouteOption('fast')">
+            <div class="route-card-header">
+              <div class="route-title-group">
+                <span class="status-dot red"></span>
+                <strong>Fastest Direct Route</strong>
+              </div>
+              <span class="badge badge-red">Safety Score 58%</span>
+            </div>
+            <p class="route-desc">Shortest walking distance, but cuts through isolated residential cross-roads with broken streetlights.</p>
+            
+            <div class="metrics-grid">
+              <div class="metric-box">
+                <span class="metric-label">Lighting</span>
+                <span class="metric-val text-red">42%</span>
+              </div>
+              <div class="metric-box">
+                <span class="metric-label">CCTVs</span>
+                <span class="metric-val text-yellow">3 Poles</span>
+              </div>
+              <div class="metric-box">
+                <span class="metric-label">Distance</span>
+                <span class="metric-val">1.7 km</span>
+              </div>
+              <div class="metric-box">
+                <span class="metric-label">Walk ETA</span>
+                <span class="metric-val">12 mins</span>
+              </div>
+            </div>
+
+            <div class="route-footer">
+              <span class="text-red"><i class="fa-solid fa-triangle-exclamation"></i> 2 Unlit alleyways</span>
+              <span class="text-muted">Police Patrol: Low</span>
+            </div>
+          </div>
+
+          <!-- Start Navigation on Selected Route -->
+          <button class="btn btn-emerald btn-lg w-100" id="startRouteNavBtn" onclick="startJourneyFromRoute()">
+            <i class="fa-solid fa-location-arrow"></i> Start Journey on Safest Route
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- --------------------------------------------------------------- -->
+    <!-- PAGE 3: JOURNEY SAFETY TIMER & AUTO CHECK-IN                    -->
+    <!-- --------------------------------------------------------------- -->
+    <section class="page-section" id="page-journey">
+      <div class="max-w-card">
+        <div class="card journey-card">
+          <div class="journey-header">
+            <div>
+              <h2><i class="fa-regular fa-clock"></i> Journey Safety Timer & Auto Check-In</h2>
+              <p class="text-muted">Set expected travel duration. If you don't check in before 00:00, SafeWay auto-triggers distress alerts.</p>
+            </div>
+            <span class="badge badge-secondary" id="journeyStatusTag">STANDBY</span>
+          </div>
+
+          <!-- Big Countdown Clock -->
+          <div class="clock-display-box">
+            <div class="big-timer-digits" id="journeyClockDigits">15:00</div>
+            <p class="destination-text">
+              Target Destination: <strong class="text-green" id="journeyDestName">Indiranagar Metro Station</strong>
+            </p>
+          </div>
+
+          <!-- Controls when Timer is IDLE -->
+          <div id="journeySetupControls">
+            <label class="form-label">Select Estimated Duration:</label>
+            <div class="preset-time-buttons">
+              <button class="btn btn-secondary" onclick="setTimerDuration(5)">5 Mins</button>
+              <button class="btn btn-secondary active" onclick="setTimerDuration(15)">15 Mins</button>
+              <button class="btn btn-secondary" onclick="setTimerDuration(25)">25 Mins</button>
+              <button class="btn btn-secondary" onclick="setTimerDuration(40)">40 Mins</button>
+            </div>
+
+            <div class="custom-time-row">
+              <div class="input-group">
+                <span>Custom Duration:</span>
+                <input type="number" id="customTimerInput" min="1" max="180" value="15">
+                <span>mins</span>
+              </div>
+              <button class="btn btn-emerald" onclick="startJourneyTimer()">
+                <i class="fa-solid fa-play"></i> Start Safety Timer
+              </button>
+            </div>
+          </div>
+
+          <!-- Controls when Timer is RUNNING -->
+          <div id="journeyActiveControls" style="display: none;">
+            <button class="btn btn-emerald btn-lg w-100 checkin-btn" onclick="checkInSafely()">
+              <i class="fa-solid fa-circle-check"></i> I Have Arrived Safely [Check In]
+            </button>
+            <div class="timer-action-row">
+              <button class="btn btn-secondary" onclick="extendTimerMinutes(5)">
+                <i class="fa-solid fa-plus"></i> Extend +5 Mins
+              </button>
+              <button class="btn btn-danger" onclick="cancelJourneyTimer()">
+                <i class="fa-solid fa-xmark"></i> Cancel Journey
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Protocol Explainer -->
+        <div class="card info-card">
+          <h4><i class="fa-solid fa-circle-info"></i> How Fail-Safe Protection Works:</h4>
+          <ol>
+            <li>Select expected travel minutes and hit <strong>Start Safety Timer</strong> before heading out.</li>
+            <li>Upon reaching safely, press <strong>I Have Arrived Safely</strong> to conclude the journey.</li>
+            <li>If the countdown reaches <strong>00:00</strong> without a check-in, an acoustic siren rings and emergency SMS with your live coordinates is dispatched to your emergency circle.</li>
+          </ol>
+        </div>
+      </div>
+    </section>
+
+    <!-- --------------------------------------------------------------- -->
+    <!-- PAGE 4: TRUSTED EMERGENCY CONTACTS                              -->
+    <!-- --------------------------------------------------------------- -->
+    <section class="page-section" id="page-contacts">
+      <div class="max-w-card">
+        <div class="card">
+          <div class="contacts-header">
+            <div>
+              <h2><i class="fa-solid fa-user-shield"></i> Trusted Emergency Circle</h2>
+              <p class="text-muted">These guardians receive simulated instant SMS & live tracking pins when SOS triggers.</p>
+            </div>
+            <div class="contacts-top-btns">
+              <button class="btn btn-secondary" onclick="shareLiveGPS()">
+                <i class="fa-solid fa-share-nodes"></i> Share Live GPS
+              </button>
+              <button class="btn btn-emerald" onclick="openAddContactModal()">
+                <i class="fa-solid fa-user-plus"></i> Add Contact
+              </button>
+            </div>
+          </div>
+
+          <!-- Contacts List -->
+          <div class="contacts-list" id="contactsListContainer">
+            <!-- Dynamically populated by script.js -->
+          </div>
+
+          <!-- SMS Preview Card -->
+          <div class="sms-preview-box">
+            <span class="sms-preview-title">Automated SMS Preview (Dispatched during SOS):</span>
+            <div class="sms-preview-body">
+              &#128680; <strong>EMERGENCY ALERT from SafeWay:</strong> User triggered Emergency SOS near 8th Main Rd, Indiranagar, Bengaluru.
+              Coordinates: 12.9716° N, 77.5946° E.
+              Live tracking link: <span class="text-cyan">https://safeway.app/live-track?id=sw_88219</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- --------------------------------------------------------------- -->
+    <!-- PAGE 5: 24/7 VERIFIED EMERGENCY HELPLINES                       -->
+    <!-- --------------------------------------------------------------- -->
+    <section class="page-section" id="page-helplines">
+      <div class="helplines-container">
+        <div class="card helplines-intro">
+          <div>
+            <h2><i class="fa-solid fa-phone-volume"></i> Official 24/7 Emergency Helplines</h2>
+            <p class="text-muted">One-tap cellular speed dial to central government dispatch & police control rooms.</p>
+          </div>
+          <span class="badge badge-emerald">Toll-Free &bull; 24/7 Verified</span>
+        </div>
+
+        <div class="helplines-grid" id="helplinesGrid">
+          <!-- Dynamically populated by script.js -->
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- =================================================================== -->
+  <!-- 4. FLOATING ONE-TAP SOS BUTTON                                      -->
+  <!-- =================================================================== -->
+  <div class="floating-sos-wrapper">
+    <button class="floating-sos-btn" onclick="startSOSCountdown()" title="One-Tap Emergency SOS">
+      <span class="sos-ripple"></span>
+      <span class="sos-ripple-outer"></span>
+      <i class="fa-solid fa-bell"></i>
+      <span class="sos-text">SOS</span>
+    </button>
+  </div>
+
+  <!-- =================================================================== -->
+  <!-- 5. MODAL: 5-SECOND SOS GRACE PERIOD COUNTDOWN                       -->
+  <!-- =================================================================== -->
+  <div class="modal-overlay" id="sosGraceModal" style="display: none;">
+    <div class="modal-card modal-sos">
+      <div class="modal-icon-sos">
+        <i class="fa-solid fa-bell"></i>
+      </div>
+      <span class="badge badge-red">Grace Period Active</span>
+      <h2>EMERGENCY SOS INITIATING</h2>
+      <p class="text-muted">Broadcasting distress signal to police dispatch & contacts in:</p>
+
+      <div class="countdown-circle">
+        <span class="countdown-number" id="graceCountdownNumber">5</span>
+      </div>
+
+      <p class="text-sm text-muted">Accidental touch? Abort immediately below:</p>
+
+      <div class="modal-btn-row">
+        <button class="btn btn-secondary btn-lg" onclick="cancelSOSGrace()">
+          <i class="fa-solid fa-xmark"></i> Cancel (False Alarm)
+        </button>
+        <button class="btn btn-red btn-lg" onclick="activateFullSOS()">
+          <i class="fa-solid fa-bolt"></i> Dispatch Now
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- =================================================================== -->
+  <!-- 6. ACTIVE EMERGENCY FULLSCREEN OVERLAY (WHEN SOS IS TRIGGERED)      -->
+  <!-- =================================================================== -->
+  <div class="fullscreen-emergency" id="emergencyOverlay" style="display: none;">
+    <div class="emergency-header">
+      <div class="emergency-title">
+        <span class="status-dot red"></span>
+        <h2>&#128680; ACTIVE EMERGENCY DISPATCH</h2>
+      </div>
+      <button class="btn btn-secondary" onclick="toggleSirenMute()">
+        <span id="overlaySirenBtnText">Mute Siren</span>
+      </button>
+    </div>
+
+    <div class="emergency-body">
+      <div class="emergency-box">
+        <span class="badge badge-red">LIVE TELEMETRY BROADCAST</span>
+        <h3 id="emergencyAddress">8th Main Rd, Indiranagar, Bengaluru</h3>
+        <p class="text-cyan font-mono" id="emergencyCoords">Lat: 12.9716° N &bull; Lng: 77.5946° E &bull; Accuracy: ±3m</p>
+
+        <div class="dispatch-log">
+          <div><i class="fa-solid fa-circle-check text-green"></i> SOS Telemetry uploaded to Emergency Response Cloud</div>
+          <div><i class="fa-solid fa-circle-check text-green"></i> SMS dispatched to 4 trusted guardians with live GPS pin</div>
+          <div><i class="fa-solid fa-tower-broadcast text-yellow"></i> Routing to Nearest Police PCR Patrol Vehicle #14</div>
+        </div>
+
+        <div class="emergency-call-grid">
+          <a href="tel:112" class="call-btn btn-call-red">
+            <i class="fa-solid fa-phone"></i> Call 112 (National)
+          </a>
+          <a href="tel:100" class="call-btn btn-call-blue">
+            <i class="fa-solid fa-shield"></i> Call 100 (Police)
+          </a>
+          <a href="tel:1091" class="call-btn btn-call-pink">
+            <i class="fa-solid fa-phone-volume"></i> Women Cell 1091
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <div class="emergency-footer">
+      <button class="btn btn-emerald btn-lg w-100" onclick="deescalateEmergency()">
+        <i class="fa-solid fa-check"></i> I Am Safe Now (De-escalate & Stop Siren)
+      </button>
+    </div>
+  </div>
+
+  <!-- =================================================================== -->
+  <!-- 7. MODAL: ADD EMERGENCY CONTACT                                     -->
+  <!-- =================================================================== -->
+  <div class="modal-overlay" id="addContactModal" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-user-plus text-green"></i> Add Emergency Contact</h3>
+        <button class="close-btn" onclick="closeAddContactModal()">&times;</button>
+      </div>
+
+      <form id="addContactForm" onsubmit="saveNewContact(event)">
+        <div class="form-group">
+          <label>Full Name:</label>
+          <input type="text" id="inputContactName" placeholder="e.g. Suman Sharma" required>
+        </div>
+
+        <div class="form-group">
+          <label>Phone Number (with Country Code):</label>
+          <input type="tel" id="inputContactPhone" placeholder="+91 98765 00000" required>
+        </div>
+
+        <div class="form-group">
+          <label>Relationship:</label>
+          <select id="inputContactRelation">
+            <option value="Parent">Parent</option>
+            <option value="Sibling">Sibling</option>
+            <option value="Spouse">Spouse / Partner</option>
+            <option value="Friend">Friend / Roommate</option>
+            <option value="Guardian">Guardian / Colleague</option>
+          </select>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" onclick="closeAddContactModal()">Cancel</button>
+          <button type="submit" class="btn btn-emerald">Save Contact</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- =================================================================== -->
+  <!-- 8. TOAST NOTIFICATION                                               -->
+  <!-- =================================================================== -->
+  <div class="toast" id="appToast">
+    <i class="fa-solid fa-circle-check text-green"></i>
+    <span id="toastMessage">Live GPS link copied to clipboard!</span>
+  </div>
+
+  <!-- =================================================================== -->
+  <!-- 9. FOOTER                                                           -->
+  <!-- =================================================================== -->
+  <footer class="footer">
+    <div class="footer-container">
+      <span>SafeWay v1.0 &bull; B.Tech Engineering Mini-Project</span>
+      <span>Built with HTML5, CSS3, &amp; JavaScript &bull; Integrated with 112 Dispatch</span>
+    </div>
+  </footer>
+
+  <!-- Leaflet Map JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Main Application JavaScript -->
+  <script src="script.js"></script>
+</body>
+</html>
